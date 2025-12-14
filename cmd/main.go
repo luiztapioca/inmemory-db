@@ -1,53 +1,39 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"net"
-	"strings"
+	"os"
 )
 
 func main() {
 	ln, err := net.Listen("tcp", ":6379")
 	if err != nil {
-		panic(err)
+		fmt.Println("Error opening connection: ", err)
+		return
 	}
-	defer ln.Close()
+	conn, err := ln.Accept()
 
-	fmt.Println("TCP server listening on 6379...")
+	if err != nil {
+		fmt.Println("Error connecting: ", err)
+		return
+	}
+	defer conn.Close()
 
 	for {
-		conn, err := ln.Accept()
+		buf := make([]byte, 1024)
 
+		_, err := conn.Read(buf)
 		if err != nil {
-			panic(err)
+			if err == io.EOF {
+				break
+			}
+			fmt.Println("Error reading: ", err)
+			os.Exit(1)
 		}
 
-		go func(c net.Conn) {
-			defer c.Close()
-
-			reader := bufio.NewReader(c)
-			for {
-				message, err := reader.ReadString('\n')
-
-				if err != nil {
-					if err == io.EOF {
-						fmt.Println("Connection ended.")
-						break
-					}
-					fmt.Println("Error handling message: ", err)
-					break
-				}
-				if strings.Trim(message, "\t\n") == "PING" {
-					fmt.Println("PONG")
-				}
-				_, err = conn.Write([]byte(message))
-				if err != nil {
-					fmt.Println("Error sending response: ", err)
-					break
-				}
-			}
-		}(conn)
+		conn.Write([]byte("+OK\r\n"))
 	}
+
 }
